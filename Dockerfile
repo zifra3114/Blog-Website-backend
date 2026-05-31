@@ -1,24 +1,25 @@
-# Step 1: Node.js ka stable lightweight version use kar rahe hain
+# Step 1: Base image
 FROM node:20-slim
 
-# Step 2: Hugging Face ki security policy ke mutabiq non-root user (UID 1000) banana zaroori hai
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+# Step 2: Hugging Face permission layer (Jo pre-existing 'node' user use karegi)
+# Kyunki UID 1000 pehle se 'node' user ke paas hai, hum usi ko set kar rahe hain
+ENV HOME=/home/node \
+    PATH=/home/node/.local/bin:$PATH
 
-# Step 3: Container ke andar app ka directory setup
 WORKDIR $HOME/app
 
-# Step 4: Pehle package files copy karke dependencies install karenge (Caching ke liye behtar hai)
-COPY --chown=user package*.json ./
+# Step 3: Dependencies install karein safely
+COPY --chown=node:node package*.json ./
 RUN npm ci --only=production
 
-# Step 5: Baki saara project ka code copy karein safely
-COPY --chown=user . .
+# Step 4: Pura code copy karein properly owned by 'node' user
+COPY --chown=node:node . .
 
-# Step 6: Hugging Face ka internal port expose karein
+# Step 5: Switch to user 1000 (node) for security
+USER 1000
+
+# Step 6: Port exposure
 EXPOSE 7860
 
-# Step 7: Server start karne ki command
+# Step 7: Execution script
 CMD ["npm", "start"]
