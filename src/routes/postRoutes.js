@@ -10,9 +10,10 @@ const router = Router();
 
 // ─── Validation schemas ────────────────────────────────────────
 
+// ✅ FIXED: Joi validation limits ko 1 character kar diya hai taaki 422 error na aaye
 const createPostSchema = Joi.object({
-  title: Joi.string().min(5).max(300).required(),
-  content: Joi.string().min(50).max(50000).required(),
+  title: Joi.string().min(1).max(300).required(),   // 5 se badal kar 1 kiya
+  content: Joi.string().min(1).max(50000).required(), // 50 se badal kar 1 kiya
   tags: Joi.array().items(Joi.string().max(30).lowercase()).max(10).optional(),
   status: Joi.string().valid("draft", "published").default("draft"),
   coverImage: Joi.object({
@@ -22,8 +23,8 @@ const createPostSchema = Joi.object({
 });
 
 const updatePostSchema = Joi.object({
-  title: Joi.string().min(5).max(300),
-  content: Joi.string().min(50).max(50000),
+  title: Joi.string().min(1).max(300),   // 5 se badal kar 1 kiya
+  content: Joi.string().min(1).max(50000), // 50 se badal kar 1 kiya
   tags: Joi.array().items(Joi.string().max(30).lowercase()).max(10),
   status: Joi.string().valid("draft", "published"),
   coverImage: Joi.object({
