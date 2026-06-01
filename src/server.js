@@ -11,7 +11,7 @@ import cookieParser from "cookie-parser";
 import mongoSanitize from "express-mongo-sanitize";
 import morgan from "morgan";
 
-// ✅ FIXED PATHS (Assuming server.js is inside 'src' folder as per your structure)
+// ✅ FIXED PATHS
 import env from "./config/env.js";
 import logger from "./config/logger.js";
 import routes from "./routes/index.js";
@@ -23,10 +23,16 @@ import ApiError from "./utils/ApiError.js";
 
 const app = express();
 
+// ─── Hugging Face Health Check Route ───────────────────────────
+// ✅ FIXED: Isko upar rakhna lazmi hai taake Hugging Face isko read kar sake bina kisi rate limit ke
+app.get("/", (req, res) => {
+  res.status(200).send("Backend Running Successfully on Hugging Face 🚀");
+});
+
 // ─── Security Middleware ───────────────────────────────────────
 app.use(helmet());
 
-// ✅ FIXED CORS: Dynamic origin resolution with credentials support
+// ✅ FIXED CORS: Credentials toggled safely
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -46,6 +52,7 @@ app.use(
   }),
 );
 
+// Global API rate limiter
 app.use("/api/", apiLimiter);
 app.use(mongoSanitize());
 
@@ -70,10 +77,6 @@ if (env.NODE_ENV === "development") {
 // ─── API routes ────────────────────────────────────────────────
 app.use("/api/v1", routes);
 
-app.get("/", (req, res) => {
-  res.send("Backend Running Successfully on Hugging Face 🚀");
-});
-
 // ─── 404 handler ───────────────────────────────────────────────
 app.all("*", (req, _res, next) => {
   next(ApiError.notFound(`Route ${req.method} ${req.originalUrl} not found`));
@@ -83,15 +86,16 @@ app.all("*", (req, _res, next) => {
 app.use(errorHandler);
 
 // ─── Server Listening & DB Connection ──────────────────────────
-const PORT = process.env.PORT || 5000;
+// ✅ FIXED: Priority to env.PORT (Hugging Face dynamically injects 7860 here)
+const PORT = env.PORT || process.env.PORT || 7860; 
 
-// ✅ FIXED: Top-level await ki jagah structured connection handler
 const startServer = async () => {
   try {
     await connectDB();
     logger.info("Database connected successfully! 🎉");
 
-    app.listen(PORT, () => {
+    // ✅ FIXED: Explicitly binding to 0.0.0.0 for Docker/Hugging Face environments
+    app.listen(PORT, "0.0.0.0", () => {
       console.log(`\n🚀 =================================================`);
       console.log(`   Backend is running perfectly on port: ${PORT}`);
       console.log(`==================================================== 🚀\n`);
