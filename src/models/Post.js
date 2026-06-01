@@ -38,14 +38,14 @@ const postSchema = new Schema(
       type: String,
       required: [true, 'Title is required'],
       trim: true,
-      minlength: [5, 'Title must be at least 5 characters'],
+      minlength: [1, 'Title must be at least 1 character'], // 5 se kam karke 1 kar diya
       maxlength: [300, 'Title must be at most 300 characters'],
     },
 
     content: {
       type: String,
       required: [true, 'Content is required'],
-      minlength: [50, 'Content must be at least 50 characters'],
+      minlength: [1, 'Content cannot be empty'], // ❌ 50 characters wali limit YAHAN SE HATA DI HAI ✅
       maxlength: [50000, 'Content must be at most 50,000 characters'],
     },
 
