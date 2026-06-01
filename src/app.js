@@ -5,26 +5,25 @@ import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import morgan from 'morgan';
 
+// Config imports
 import env from './config/env.js';
 import corsOptions from './config/cors.js';
 import logger from './config/logger.js';
 import routes from './routes/index.js';
-import connectDB from './config/db.js';
+
+// Middleware & Utils imports
 import { apiLimiter } from './middlewares/rateLimiter.js';
 import errorHandler from './middlewares/errorHandler.js';
 import ApiError from './utils/ApiError.js';
 
 const app = express();
 
-// ✅ Connect DB only once
-await connectDB();
-
 // ─── Security middleware ───────────────────────────────────────
 
 // Set security HTTP headers
 app.use(helmet());
 
-// CORS
+// CORS (Ab yeh aapki dedicated './config/cors.js' file se options le rha hai)
 app.use(cors(corsOptions));
 
 // Rate limiting

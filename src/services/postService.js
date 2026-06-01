@@ -2,8 +2,10 @@ import { Post, Bookmark } from "../models/index.js";
 import ApiError from "../utils/ApiError.js";
 import pick from "../utils/pick.js";
 import { notifyPostLike, notifyNewBlog } from "./notificationEmitter.js";
-import { getIO } from "../../../Blog-backend/src/config/socket.js";
-import logger from "../../../Blog-backend/src/config/logger.js";
+
+// ✅ FIXED PATHS: Project workspace ke hisab se relative paths corect kar diye hain
+import { getIO } from "../config/socket.js";
+import logger from "../config/logger.js";
 
 /**
  * Create a new post.
@@ -135,7 +137,6 @@ export const remove = async (postId, userId, isAdmin = false) => {
  * Get a single post by slug.
  */
 export const getBySlug = async (slug, viewerId = null) => {
-  // First find the post without status filter
   const post = await Post.findOne({ slug }).populate(
     "author",
     "name username headline avatar",
@@ -143,14 +144,14 @@ export const getBySlug = async (slug, viewerId = null) => {
 
   if (!post) throw ApiError.notFound("Post not found");
 
-  // Check if post is published OR viewer is the author
-  const isAuthor = viewerId && viewerId.equals(post.author._id);
+  // ✅ FIXED: Safely checking author identity via toString()
+  const isAuthor = viewerId && viewerId.toString() === post.author._id.toString();
   if (post.status !== "published" && !isAuthor) {
     throw ApiError.notFound("Post not found");
   }
 
   // Increment view count (but not for the author)
-  if (!viewerId || !viewerId.equals(post.author._id)) {
+  if (!viewerId || viewerId.toString() !== post.author._id.toString()) {
     await Post.findByIdAndUpdate(post._id, { $inc: { viewCount: 1 } });
   }
 
@@ -158,7 +159,7 @@ export const getBySlug = async (slug, viewerId = null) => {
   let isLiked = false;
   let isBookmarked = false;
   if (viewerId) {
-    isLiked = post.isLikedBy(viewerId);
+    isLiked = post.likes?.some((id) => id.toString() === viewerId.toString()) || false;
     isBookmarked = await Bookmark.isBookmarked(viewerId, post._id);
   }
 
@@ -204,20 +205,25 @@ export const list = async (filters = {}, viewerId = null) => {
     Post.countDocuments(query),
   ]);
 
-  // Add viewer-specific flags if viewerId is provided
+  // ✅ FIXED PERFORMANCE: Ek single DB query se saare bookmarks check kar rahe hain instead of looping queries
   let enrichedPosts = posts;
-  if (viewerId) {
-    enrichedPosts = await Promise.all(
-      posts.map(async (post) => {
-        const isLiked = post.likes?.some((id) => id.equals(viewerId)) || false;
-        const isBookmarked = await Bookmark.isBookmarked(viewerId, post._id);
-        return {
-          ...post,
-          isLiked,
-          isSaved: isBookmarked,
-        };
-      }),
-    );
+  if (viewerId && posts.length > 0) {
+    const postIds = posts.map((p) => p._id);
+    const savedBookmarks = await Bookmark.find({
+      user: viewerId,
+      post: { $in: postIds },
+    }).select("post");
+
+    const savedPostIdsSet = new Set(savedBookmarks.map((b) => b.post.toString()));
+
+    enrichedPosts = posts.map((post) => {
+      const isLiked = post.likes?.some((id) => id.toString() === viewerId.toString()) || false;
+      return {
+        ...post,
+        isLiked,
+        isSaved: savedPostIdsSet.has(post._id.toString()),
+      };
+    });
   }
 
   return {
@@ -238,14 +244,13 @@ export const toggleRepost = async (postId, userId) => {
   const post = await Post.findById(postId);
   if (!post) throw ApiError.notFound("Post not found");
 
-  const hasReposted = post.reposts.includes(userId);
+  // ✅ FIXED: Using safe toString comparison for array item search
+  const hasReposted = post.reposts.some((id) => id.toString() === userId.toString());
 
   if (hasReposted) {
-    // Remove repost
     post.reposts.pull(userId);
     post.repostCount = Math.max(0, post.repostCount - 1);
   } else {
-    // Add repost
     post.reposts.push(userId);
     post.repostCount += 1;
   }
@@ -265,7 +270,7 @@ export const toggleLike = async (postId, userId) => {
   const post = await Post.findById(postId);
   if (!post) throw ApiError.notFound("Post not found");
 
-  const alreadyLiked = post.likes.some((id) => id.equals(userId));
+  const alreadyLiked = post.likes.some((id) => id.toString() === userId.toString());
 
   if (alreadyLiked) {
     post.likes.pull(userId);
@@ -277,7 +282,6 @@ export const toggleLike = async (postId, userId) => {
 
   await post.save();
 
-  // Notify post author when someone likes their post
   if (!alreadyLiked) {
     notifyPostLike(postId, post.author, userId);
   }
@@ -311,20 +315,25 @@ export const getByUser = async (
     Post.countDocuments(query),
   ]);
 
-  // Add viewer-specific flags if viewerId is provided
+  // ✅ FIXED PERFORMANCE: Yahan bhi loop query optimize kar di $in check ke saath
   let enrichedPosts = posts;
-  if (viewerId) {
-    enrichedPosts = await Promise.all(
-      posts.map(async (post) => {
-        const isLiked = post.likes?.some((id) => id.equals(viewerId)) || false;
-        const isBookmarked = await Bookmark.isBookmarked(viewerId, post._id);
-        return {
-          ...post,
-          isLiked,
-          isSaved: isBookmarked,
-        };
-      }),
-    );
+  if (viewerId && posts.length > 0) {
+    const postIds = posts.map((p) => p._id);
+    const savedBookmarks = await Bookmark.find({
+      user: viewerId,
+      post: { $in: postIds },
+    }).select("post");
+
+    const savedPostIdsSet = new Set(savedBookmarks.map((b) => b.post.toString()));
+
+    enrichedPosts = posts.map((post) => {
+      const isLiked = post.likes?.some((id) => id.toString() === viewerId.toString()) || false;
+      return {
+        ...post,
+        isLiked,
+        isSaved: savedPostIdsSet.has(post._id.toString()),
+      };
+    });
   }
 
   return {

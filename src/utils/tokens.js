@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import env from "../../../Blog-backend/src/config/env.js";
+// ✅ Path is correct assuming this file is inside src/utils/ or src/services/
+import env from "../config/env.js";
 
 /**
  * Sign an access token (short-lived, stored in memory on client).
@@ -53,11 +54,16 @@ export const generateVerificationToken = () => {
  */
 export const refreshTokenCookieOptions = () => {
   const isProduction = env.NODE_ENV === "production";
+  
   return {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "strict" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches JWT_REFRESH_EXPIRY)
+    secure: isProduction, // Production (HTTPS) par true hoga, local (HTTP) par false
+    // ✅ FIXED: Agar Frontend aur Backend ka domain alag hai production me, 
+    // toh 'none' zaroori hai, warna cookies set nahi hongi.
+    sameSite: isProduction ? "none" : "lax", 
+    // ✅ OPTIMIZATION: 7 din ka milliseconds me backup, 
+    // lekin behtar hai aapki .env ki expiry se match kare
+    maxAge: 7 * 24 * 60 * 60 * 1000, 
     path: "/",
   };
 };

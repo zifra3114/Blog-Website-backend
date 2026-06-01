@@ -25,12 +25,16 @@ router.get(
   '/',
   validate({ query: searchSchema }),
   asyncHandler(async (req, res) => {
+    // FIX: Joi automatically numbers ko cast kar deta hai, 
+    // isliye controller mein baar-baar `parseInt` ya `||` lagane ki zaroorat nahi hai.
     const { q, page, limit } = req.query;
+
     const result = await searchService.searchAll(
       q,
-      parseInt(page) || 1,
-      parseInt(limit) || 20
+      page,  // Ab yeh safe hai aur Joi se validate/cast ho kar aaya hai
+      limit  // Ab yeh bhi safe hai
     );
+
     res.json(ApiResponse.ok(result));
   })
 );

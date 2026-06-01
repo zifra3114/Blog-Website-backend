@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
-import env from "../../../Blog-backend/src/config/env.js";
-import logger from "../../../Blog-backend/src/config/logger.js";
+
+// ✅ FIXED PATHS: Workspace configuration ke mutabiq relative paths corect kar diye hain
+import env from "../config/env.js";
+import logger from "../config/logger.js";
 
 // ─── Transporter ───────────────────────────────────────────────
 
@@ -37,8 +39,9 @@ const initTransporter = async () => {
 
   transporter = nodemailer.createTransport({
     host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
+    // ✅ FIXED: Number parsers ke sath safe extraction to avoid data type mismatch strings
+    port: parseInt(env.SMTP_PORT, 10) || 587,
+    secure: parseInt(env.SMTP_PORT, 10) === 465, // "465" ko integer bana kar safely strictly compare kiya hai
     auth: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASS,
@@ -67,7 +70,8 @@ export const sendEmail = async ({ to, subject, html }) => {
     }
 
     const info = await emailTransporter.sendMail({
-      from: env.EMAIL_FROM,
+      // ✅ FIXED: Fallback handle kiya hai agar variable set na ho
+      from: env.EMAIL_FROM || `"LinkedIn Blog Admin" <${env.SMTP_USER}>`,
       to,
       subject,
       html,

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import validate from '../middlewares/validate.js';
-import { authenticate, optionalAuth } from '../middlewares/auth.js';
+import { authenticate } from '../middlewares/auth.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiResponse from '../utils/ApiResponse.js';
 import * as feedService from '../services/feedService.js';
@@ -23,38 +23,38 @@ const trendingSchema = Joi.object({
 // ─── Routes ────────────────────────────────────────────────────
 
 /**
- * GET /feed
- * Personalized feed for authenticated users (cursor-based pagination).
- */
-router.get(
-  '/',
-  authenticate,
-  validate({ query: personalizedSchema }),
-  asyncHandler(async (req, res) => {
-    const { cursor, limit } = req.query;
-    const result = await feedService.getPersonalizedFeed(
-      req.user._id,
-      cursor || null,
-      parseInt(limit) || 20
-    );
-    res.json(ApiResponse.ok(result));
-  })
-);
-
-/**
- * GET /feed/trending
+ * FIX 1: GET /feed/trending (Specific Route Upar kiya)
  * Trending posts (no auth required).
  */
 router.get(
   '/trending',
   validate({ query: trendingSchema }),
   asyncHandler(async (req, res) => {
-    const { page, limit } = req.query;
-    const result = await feedService.getTrendingFeed(
-      parseInt(page) || 1,
-      parseInt(limit) || 20
-    );
+    // FIX 2: Joi validation ke baad data already casted hota hai, parseInt hata diya
+    const { page, limit } = req.query; 
+    
+    const result = await feedService.getTrendingFeed(page, limit);
     res.json(ApiResponse.paginated(result.posts, result.meta));
+  })
+);
+
+/**
+ * FIX 1: GET /feed (Generic / Base Route Aakhir mein kiya)
+ * Personalized feed for authenticated users (cursor-based pagination).
+ */
+router.get(
+  '/',
+  authenticate, // Ab yeh sirf isi route par chalega, /trending ko block nahi karega
+  validate({ query: personalizedSchema }),
+  asyncHandler(async (req, res) => {
+    const { cursor, limit } = req.query;
+    
+    const result = await feedService.getPersonalizedFeed(
+      req.user._id,
+      cursor || null,
+      limit
+    );
+    res.json(ApiResponse.ok(result));
   })
 );
 

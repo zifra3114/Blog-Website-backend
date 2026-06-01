@@ -1,6 +1,6 @@
-import asyncHandler from "../../../../server/src/utils/asyncHandler.js";
-import ApiResponse from "../../../../server/src/utils/ApiResponse.js";
-import * as userService from "../../../../server/src/services/userService.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import * as userService from "../services/userService.js";
 
 /**
  * GET /users/:username

@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError.js";
-import logger from "../../../Blog-backend/src/config/logger.js";
-import env from "../../../Blog-backend/src/config/env.js";
+// FIX 1: Path ko clean aur standard relative format mein badla
+import logger from "../config/logger.js";
+import env from "../config/env.js";
 
 /**
  * Global error-handling middleware.
@@ -13,7 +14,7 @@ const errorHandler = (err, _req, res, _next) => {
 
   // ─── Normalize known error types ─────────────────────────
 
-  // Mongoose validation error
+  // 1. Mongoose validation error
   if (err instanceof mongoose.Error.ValidationError) {
     const details = Object.values(err.errors).map((e) => ({
       field: e.path,
@@ -22,8 +23,9 @@ const errorHandler = (err, _req, res, _next) => {
     error = ApiError.validation("Validation failed", details);
   }
 
-  // Mongoose duplicate key error (code 11000)
-  if (err.code === 11000) {
+  // 2. Mongoose duplicate key error (code 11000)
+  // FIX 2: Check kiya ke err.keyValue sach mein exist karta hai ya nahi taaki crash na ho
+  else if (err && err.code === 11000 && err.keyValue) {
     const field = Object.keys(err.keyValue)[0];
     const value = err.keyValue[field];
     error = ApiError.conflict(
@@ -31,29 +33,32 @@ const errorHandler = (err, _req, res, _next) => {
     );
   }
 
-  // Mongoose bad ObjectId (cast error)
-  if (err instanceof mongoose.Error.CastError) {
+  // 3. Mongoose bad ObjectId (cast error)
+  else if (err instanceof mongoose.Error.CastError) {
     error = ApiError.badRequest(`Invalid ${err.path}: ${err.value}`);
   }
 
-  // JWT errors
-  if (err.name === "JsonWebTokenError") {
+  // 4. JWT errors
+  else if (err && err.name === "JsonWebTokenError") {
     error = ApiError.unauthorized("Invalid token");
   }
-  if (err.name === "TokenExpiredError") {
+  else if (err && err.name === "TokenExpiredError") {
     error = ApiError.unauthorized("Token has expired");
   }
 
   // ─── Build response ──────────────────────────────────────
 
-  const statusCode = error.statusCode || 500;
-  const message = error.isOperational ? error.message : "Internal server error";
+  // FIX 3: Status code handle karne ka foolproof tareeqa
+  const statusCode = error?.statusCode || 500;
+  
+  // Agar error custom ApiError se hai aur operational hai, to uska message bhejo warna generic
+  const message = error?.isOperational ? error.message : "Internal server error";
 
-  // Log non-operational (unexpected) errors
-  if (!error.isOperational) {
+  // Log non-operational (unexpected / unhandled) errors
+  if (!error?.isOperational) {
     logger.error("Unexpected error", {
-      message: err.message,
-      stack: err.stack,
+      message: err?.message || "No error message provided",
+      stack: err?.stack,
       statusCode,
     });
   }
@@ -61,19 +66,19 @@ const errorHandler = (err, _req, res, _next) => {
   const response = {
     success: false,
     error: {
-      code: error.code || "INTERNAL_ERROR",
+      code: error?.code || "INTERNAL_ERROR",
       message,
     },
   };
 
   // Include validation details if present
-  if (error.details?.length > 0) {
+  if (error?.details?.length > 0) {
     response.error.details = error.details;
   }
 
-  // Include stack trace in development
+  // Include stack trace only in development environment
   if (env.NODE_ENV === "development") {
-    response.error.stack = err.stack;
+    response.error.stack = err?.stack || "";
   }
 
   res.status(statusCode).json(response);

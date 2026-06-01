@@ -10,14 +10,18 @@ export const searchAll = async (query, page = 1, limit = 20) => {
   }
 
   const skip = (page - 1) * limit;
-  const regex = new RegExp(query, 'i');
+
+  // ✅ FIXED: Escape special characters to prevent regex injection crashes
+  const escapedQuery = query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+  const regex = new RegExp(escapedQuery, 'i');
 
   const [posts, users, postTotal, userTotal] = await Promise.all([
+    // 1. Fetch Matches from Posts
     Post.find({
       status: 'published',
       $or: [
         { title: regex },
-        { tags: { $in: [query.toLowerCase()] } },
+        { tags: regex }, // ✅ FIXED: Tags par bhi partial regex match lagaya taake 'java' search karne par 'javascript' ka tag mil sake
       ],
     })
       .populate('author', 'name username headline avatar')
@@ -26,6 +30,7 @@ export const searchAll = async (query, page = 1, limit = 20) => {
       .limit(limit)
       .lean(),
 
+    // 2. Fetch Matches from Users
     User.find({
       isActive: true,
       $or: [{ name: regex }, { username: regex }],
@@ -36,14 +41,16 @@ export const searchAll = async (query, page = 1, limit = 20) => {
       .limit(limit)
       .lean(),
 
+    // 3. Count Total Matching Posts
     Post.countDocuments({
       status: 'published',
       $or: [
         { title: regex },
-        { tags: { $in: [query.toLowerCase()] } },
+        { tags: regex }, // ✅ FIXED: Count me bhi same tag logic apply kiya
       ],
     }),
 
+    // 4. Count Total Matching Users
     User.countDocuments({
       isActive: true,
       $or: [{ name: regex }, { username: regex }],

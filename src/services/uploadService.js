@@ -1,6 +1,7 @@
-import cloudinary from "../../../Blog-backend/src/config/cloudinary.js";
+// ✅ FIXED PATHS: Project folder ke hisab se relative paths theek kar diye hain
+import cloudinary from "../config/cloudinary.js";
 import ApiError from "../utils/ApiError.js";
-import logger from "../../../Blog-backend/src/config/logger.js";
+import logger from "../config/logger.js";
 
 /**
  * Upload an image buffer to Cloudinary.
@@ -14,7 +15,8 @@ export const uploadImage = async (buffer, options = {}) => {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: "linkedin-blog",
-        transformation: [
+        // ✅ Default transformation agar options me na bheji jaye
+        transformation: options.transformation || [
           { width: 1200, height: 630, crop: "limit", quality: "auto" },
           { fetch_format: "auto" },
         ],

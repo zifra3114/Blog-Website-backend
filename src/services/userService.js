@@ -19,7 +19,8 @@ export const getProfile = async (username, currentUserId) => {
   const user = await getByUsername(username);
 
   let isFollowing = false;
-  if (currentUserId && !currentUserId.equals(user._id)) {
+  // ✅ ID verification safe checks
+  if (currentUserId && user && currentUserId.toString() !== user._id.toString()) {
     isFollowing = await Follow.isFollowing(currentUserId, user._id);
   }
 
@@ -104,7 +105,8 @@ export const updateImage = async (userId, field, imageData) => {
  * Toggle follow/unfollow another user.
  */
 export const toggleFollow = async (followerId, targetUserId) => {
-  if (followerId.equals(targetUserId)) {
+  // ✅ Fixed safely comparing objectIds via toString()
+  if (followerId.toString() === targetUserId.toString()) {
     throw ApiError.badRequest('You cannot follow yourself');
   }
 
@@ -136,8 +138,13 @@ export const getFollowers = async (userId, page = 1, limit = 20) => {
     Follow.countDocuments({ following: userId }),
   ]);
 
+  // ✅ FIXED: Filter out null followers (if any user deleted their account) to prevent UI crash
+  const activeFollowers = followers
+    .map((f) => f.follower)
+    .filter((follower) => follower !== null);
+
   return {
-    users: followers.map((f) => f.follower),
+    users: activeFollowers,
     meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 };
@@ -157,8 +164,13 @@ export const getFollowing = async (userId, page = 1, limit = 20) => {
     Follow.countDocuments({ follower: userId }),
   ]);
 
+  // ✅ FIXED: Filter out null followings to prevent UI crash
+  const activeFollowing = following
+    .map((f) => f.following)
+    .filter((following) => following !== null);
+
   return {
-    users: following.map((f) => f.following),
+    users: activeFollowing,
     meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 };
@@ -168,7 +180,10 @@ export const getFollowing = async (userId, page = 1, limit = 20) => {
  */
 export const searchUsers = async (query, page = 1, limit = 20) => {
   const skip = (page - 1) * limit;
-  const regex = new RegExp(query, 'i');
+  
+  // ✅ FIXED: Escape special characters in regex to prevent crash/injection
+  const escapedQuery = query.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+  const regex = new RegExp(escapedQuery, 'i');
 
   const filter = {
     isActive: true,

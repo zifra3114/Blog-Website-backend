@@ -2,7 +2,7 @@ import { Router } from "express";
 import Joi from "joi";
 import validate from "../middlewares/validate.js";
 import { authenticate } from "../middlewares/auth.js";
-import * as userController from "../../../Blog-backend/src/config/controllers/userController.js";
+import * as userController from "../controllers/userController.js";
 
 const router = Router();
 
@@ -63,7 +63,8 @@ const updateProfileSchema = Joi.object({
     .optional(),
 }).min(1);
 
-const followSchema = Joi.object({
+// MongoDB ObjectId validation ke liye schema (id params ke liye)
+const idParamSchema = Joi.object({
   id: Joi.string().hex().length(24).required(),
 });
 
@@ -80,13 +81,12 @@ const searchSchema = Joi.object({
 
 // ─── Routes ────────────────────────────────────────────────────
 
+// 1. Static ya Specific routes hamesha upar hone chahiye
 router.get(
   "/search",
   validate({ query: searchSchema }),
   userController.searchUsers,
 );
-
-router.get("/:username", userController.getProfile);
 
 router.patch(
   "/me",
@@ -95,23 +95,27 @@ router.patch(
   userController.updateProfile,
 );
 
+// 2. ID-based routes (In mein ab URL params bhi validate ho rahe hain)
 router.post(
   "/:id/follow",
   authenticate,
-  validate({ params: followSchema }),
+  validate({ params: idParamSchema }),
   userController.toggleFollow,
 );
 
 router.get(
   "/:id/followers",
-  validate({ query: paginationSchema }),
+  validate({ params: idParamSchema, query: paginationSchema }),
   userController.getFollowers,
 );
 
 router.get(
   "/:id/following",
-  validate({ query: paginationSchema }),
+  validate({ params: idParamSchema, query: paginationSchema }),
   userController.getFollowing,
 );
+
+// 3. Dynamic/Wildcard route (/:username) ko bilkul aakhir mein rakhein
+router.get("/:username", userController.getProfile);
 
 export default router;

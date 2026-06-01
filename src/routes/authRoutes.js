@@ -3,7 +3,7 @@ import Joi from "joi";
 import validate from "../middlewares/validate.js";
 import { authenticate } from "../middlewares/auth.js";
 import { authLimiter } from "../middlewares/rateLimiter.js";
-import * as authController from "../../../Blog-backend/src/config/controllers/authController.js";
+import * as authController from "../controllers/authController.js";
 
 const router = Router();
 
@@ -57,6 +57,12 @@ const resendVerificationSchema = Joi.object({
   email: Joi.string().email().required(),
 });
 
+// FIX 1: URL params ke andar aane waale token ko validate karne ke liye schema
+// (Agar aapka token string format hai to string, agar hex/jwt hai to us mutabiq .hex() ya .jwt() laga sakte hain)
+const tokenParamSchema = Joi.object({
+  token: Joi.string().required(),
+});
+
 // ─── Routes ────────────────────────────────────────────────────
 
 router.post(
@@ -73,13 +79,32 @@ router.post(
   authController.login,
 );
 
-router.post("/refresh", authController.refresh);
+// FIX 2: Refresh token endpoint ko brute-force se bachane ke liye rate limiter lagaya
+router.post(
+  "/refresh", 
+  authLimiter, 
+  authController.refresh
+);
 
-router.post("/logout", authenticate, authController.logout);
+router.post(
+  "/logout", 
+  authenticate, 
+  authController.logout
+);
 
-router.get("/me", authenticate, authController.me);
+router.get(
+  "/me", 
+  authenticate, 
+  authController.me
+);
 
-router.post("/verify-email/:token", authController.verifyEmail);
+// FIX 3: Token routes par rate limiter aur param validation dono apply kiye hain
+router.post(
+  "/verify-email/:token",
+  authLimiter,
+  validate({ params: tokenParamSchema }),
+  authController.verifyEmail,
+);
 
 router.post(
   "/resend-verification",
@@ -98,7 +123,7 @@ router.post(
 router.post(
   "/reset-password/:token",
   authLimiter,
-  validate({ body: resetPasswordSchema }),
+  validate({ params: tokenParamSchema, body: resetPasswordSchema }), // Params aur body dono validate ho rahe hain
   authController.resetPassword,
 );
 

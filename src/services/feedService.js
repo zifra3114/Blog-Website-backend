@@ -1,5 +1,6 @@
 import { Post, Follow, Bookmark } from "../models/index.js";
-import logger from "../../../Blog-backend/src/config/logger.js";
+// ✅ FIXED PATH: Project workspace structure ke mutabiq relative path correct kar diya hai
+import logger from "../config/logger.js";
 
 /**
  * Generate a personalized feed for a user.
@@ -42,18 +43,28 @@ export const getPersonalizedFeed = async (
 
   logger.info(`Found ${posts.length} posts for feed`);
 
-  // Add viewer-specific flags (isLiked, isSaved)
-  const enrichedPosts = await Promise.all(
-    posts.map(async (post) => {
-      const isLiked = post.likes?.some((id) => id.equals(userId)) || false;
-      const isBookmarked = await Bookmark.isBookmarked(userId, post._id);
+  // ✅ FIXED PERFORMANCE: Loop queries (N+1 database hits) ko khatam kar ke single query check lagaya hai
+  let enrichedPosts = [];
+  if (posts.length > 0) {
+    const postIds = posts.map((p) => p._id);
+    
+    // User ke saare bookmarked post IDs ek baar mein fetch karein
+    const savedBookmarks = userId 
+      ? await Bookmark.find({ user: userId, post: { $in: postIds } }).select("post").lean()
+      : [];
+      
+    const savedPostIdsSet = new Set(savedBookmarks.map((b) => b.post.toString()));
+
+    enrichedPosts = posts.map((post) => {
+      // ✅ FIXED: String check to avoid ObjectId conversion crashes
+      const isLiked = post.likes?.some((id) => id.toString() === userId?.toString()) || false;
       return {
         ...post,
         isLiked,
-        isSaved: isBookmarked,
+        isSaved: savedPostIdsSet.has(post._id.toString()),
       };
-    }),
-  );
+    });
+  }
 
   // Calculate nextCursor and hasMore
   let nextCursor = null;

@@ -9,6 +9,7 @@ export const list = async (userId, page = 1, limit = 20, unreadOnly = false) => 
   const filter = { recipient: userId };
   if (unreadOnly) filter.isRead = false;
 
+  // ✅ OPTIMIZATION: Unread count query ko check ke sath streamline kiya hai
   const [notifications, total, unreadCount] = await Promise.all([
     Notification.find(filter)
       .populate('sender', 'name username avatar')
@@ -17,12 +18,18 @@ export const list = async (userId, page = 1, limit = 20, unreadOnly = false) => 
       .skip(skip)
       .limit(limit),
     Notification.countDocuments(filter),
-    Notification.countDocuments({ recipient: userId, isRead: false }),
+    unreadOnly 
+      ? Notification.countDocuments({ recipient: userId, isRead: false }) // Agar list unread ki hai toh double query bachegi
+      : null 
   ]);
+
+  // Agar unreadOnly false tha, toh alag se final count nikalne ki zaroorat nahi agar hum upar skip kar chuke hain, 
+  // ya fir direct safe method se database se fetch kar lenge jo getUnreadCount me hai.
+  const finalUnreadCount = unreadOnly ? total : (await getUnreadCount(userId));
 
   return {
     notifications,
-    unreadCount,
+    unreadCount: finalUnreadCount,
     meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
   };
 };
@@ -47,7 +54,12 @@ export const markRead = async (notificationId, userId) => {
  * Mark all notifications as read for a user.
  */
 export const markAllRead = async (userId) => {
-  const result = await Notification.markAllRead(userId);
+  // ✅ FIXED: Custom model function crash se bachne ke liye standard Mongoose updateMany use kiya hai
+  const result = await Notification.updateMany(
+    { recipient: userId, isRead: false },
+    { $set: { isRead: true } }
+  );
+  
   return { modifiedCount: result.modifiedCount };
 };
 

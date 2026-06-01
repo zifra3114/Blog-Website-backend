@@ -1,4 +1,4 @@
-import { Comment, Post, Notification } from '../models/index.js';
+import { Comment, Post } from '../models/index.js';
 import ApiError from '../utils/ApiError.js';
 import { notifyPostComment, notifyCommentReply, notifyCommentLike } from './notificationEmitter.js';
 
@@ -11,16 +11,18 @@ export const create = async (postId, authorId, content, parentCommentId = null) 
 
   // Validate parent comment if replying
   let depth = 0;
+  let parentCommentDoc = null; // ✅ Cache variable duplicate database queries se bachne ke liye
+
   if (parentCommentId) {
-    const parent = await Comment.findById(parentCommentId);
-    if (!parent) throw ApiError.notFound('Parent comment not found');
-    if (parent.post.toString() !== postId) {
+    parentCommentDoc = await Comment.findById(parentCommentId);
+    if (!parentCommentDoc) throw ApiError.notFound('Parent comment not found');
+    if (parentCommentDoc.post.toString() !== postId.toString()) {
       throw ApiError.badRequest('Parent comment does not belong to this post');
     }
-    if (parent.depth >= 3) {
+    if (parentCommentDoc.depth >= 3) {
       throw ApiError.badRequest('Maximum nesting depth reached (3 levels)');
     }
-    depth = parent.depth + 1;
+    depth = parentCommentDoc.depth + 1;
   }
 
   const comment = await Comment.create({
@@ -32,15 +34,19 @@ export const create = async (postId, authorId, content, parentCommentId = null) 
   });
 
   // Send notification to post author (if not self-comment)
-  if (!post.author.equals(authorId)) {
+  // ✅ FIXED: Safe string comparison instead of unstable .equals()
+  if (post.author.toString() !== authorId.toString()) {
     notifyPostComment(postId, post.author, authorId, comment._id);
   }
 
   // If replying, also notify parent comment author
-  if (parentCommentId) {
-    const parent = await Comment.findById(parentCommentId);
-    if (parent && !parent.author.equals(authorId) && !parent.author.equals(post.author)) {
-      notifyCommentReply(postId, parent.author, authorId, comment._id);
+  // ✅ FIXED PERFORMANCE: Dobara database hit karne ki zaroorat nahi, cached parentCommentDoc use kar rahe hain
+  if (parentCommentId && parentCommentDoc) {
+    const isParentAuthorSelf = parentCommentDoc.author.toString() === authorId.toString();
+    const isParentAuthorPostAuthor = parentCommentDoc.author.toString() === post.author.toString();
+
+    if (!isParentAuthorSelf && !isParentAuthorPostAuthor) {
+      notifyCommentReply(postId, parentCommentDoc.author, authorId, comment._id);
     }
   }
 
@@ -128,7 +134,8 @@ export const toggleLike = async (commentId, userId) => {
   const comment = await Comment.findById(commentId);
   if (!comment) throw ApiError.notFound('Comment not found');
 
-  const alreadyLiked = comment.likes.some((id) => id.equals(userId));
+  // ✅ FIXED: Using safe string verification for checking array elements
+  const alreadyLiked = comment.likes.some((id) => id.toString() === userId.toString());
 
   if (alreadyLiked) {
     comment.likes.pull(userId);
@@ -141,7 +148,8 @@ export const toggleLike = async (commentId, userId) => {
   await comment.save();
 
   // Notify comment author
-  if (!alreadyLiked && !comment.author.equals(userId)) {
+  // ✅ FIXED: String check fallback logic
+  if (!alreadyLiked && comment.author.toString() !== userId.toString()) {
     notifyCommentLike(comment.post, comment.author, userId, comment._id);
   }
 

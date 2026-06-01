@@ -3,7 +3,7 @@ import Joi from "joi";
 import validate from "../middlewares/validate.js";
 import { authenticate, optionalAuth } from "../middlewares/auth.js";
 import { authorizeOwner } from "../middlewares/authorize.js";
-import * as postController from "../../../Blog-backend/src/config/controllers/postController.js";
+import * as postController from "../controllers/postController.js";
 import { Post } from "../models/index.js";
 
 const router = Router();
@@ -30,7 +30,7 @@ const updatePostSchema = Joi.object({
     url: Joi.string().uri().allow(""),
     publicId: Joi.string().allow(""),
   }),
-}).min(1); // at least one field required
+}).min(1);
 
 const listSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
@@ -47,10 +47,28 @@ const searchSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(50).default(20),
 });
 
+// ID Param validation ke liye schema (Crash se bachane ke liye)
+const idParamSchema = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+});
+
+// Helper function: authorizeOwner ke andar safe database check ke liye
+const getPostAuthor = async (req) => {
+  try {
+    // Agar ID valid hex nahi hai to query hi mat karo
+    if (!/^[0-9a-fA-F]{24}$/.test(req.params.id)) return null;
+    
+    const post = await Post.findById(req.params.id).select("author");
+    return post ? post.author : null;
+  } catch (error) {
+    return null; // Kisi bhi error par crash hone ke bajaye null return karega (Unauthorized)
+  }
+};
+
 // ─── Routes ────────────────────────────────────────────────────
 
+// 1. Static / Specific Routes (Hamesha sabse upar)
 router.get("/search", validate({ query: searchSchema }), postController.search);
-
 router.get("/user/:username", optionalAuth, postController.getByUser);
 
 router.get(
@@ -60,8 +78,6 @@ router.get(
   postController.list,
 );
 
-router.get("/:slug", optionalAuth, postController.getBySlug);
-
 router.post(
   "/",
   authenticate,
@@ -69,13 +85,27 @@ router.post(
   postController.create,
 );
 
+// 2. ID-based action routes (In mein ID validation lazmi daal di hai)
+router.post(
+  "/:id/like", 
+  authenticate, 
+  validate({ params: idParamSchema }), 
+  postController.toggleLike
+);
+
+router.post(
+  "/:id/repost", 
+  authenticate, 
+  validate({ params: idParamSchema }), 
+  postController.toggleRepost
+);
+
+// 3. Owner Authorized Routes (PATCH / DELETE)
 router.patch(
   "/:id",
   authenticate,
-  authorizeOwner(async (req) => {
-    const post = await Post.findById(req.params.id).select("author");
-    return post?.author;
-  }),
+  validate({ params: idParamSchema }), // FIX: Pehle params validate karo phir DB touch karo
+  authorizeOwner(getPostAuthor),       // FIX: Safe function wrap kiya hai
   validate({ body: updatePostSchema }),
   postController.update,
 );
@@ -83,15 +113,12 @@ router.patch(
 router.delete(
   "/:id",
   authenticate,
-  authorizeOwner(async (req) => {
-    const post = await Post.findById(req.params.id).select("author");
-    return post?.author;
-  }),
+  validate({ params: idParamSchema }), // FIX: Pehle params validate karo
+  authorizeOwner(getPostAuthor),
   postController.remove,
 );
 
-router.post("/:id/like", authenticate, postController.toggleLike);
-
-router.post("/:id/repost", authenticate, postController.toggleRepost);
+// 4. Wildcard / Slug Route (Hamesha sabse aakhir mein taaki baki routes block na hon)
+router.get("/:slug", optionalAuth, postController.getBySlug);
 
 export default router;
