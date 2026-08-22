@@ -24,8 +24,11 @@ const logger = winston.createLogger({
   ],
 });
 
-// Add file transports in production
-if (env.NODE_ENV === 'production') {
+// Vercel (ya kisi bhi serverless) par file system read-only hoti hai,
+// isliye file logging sirf tab add karo jab Vercel na ho
+const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (env.NODE_ENV === 'production' && !isServerless) {
   logger.add(
     new winston.transports.File({
       filename: 'logs/error.log',
