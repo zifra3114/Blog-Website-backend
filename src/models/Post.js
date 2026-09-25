@@ -60,6 +60,11 @@ const postSchema = new Schema(
       default: () => ({ url: '', publicId: '' }),
     },
 
+    coverVideo: {
+      type: imageSchema,
+      default: () => ({ url: '', publicId: '' }),
+    },
+
     tags: {
       type: [
         {

@@ -1,9 +1,8 @@
 import asyncHandler from "../utils/asyncHandler.js";
-import ApiResponse from "../utils/ApiResponse.js";
 import ApiError from "../utils/ApiError.js";
+import ApiResponse from "../utils/ApiResponse.js";
+import Post from "../models/Post.js";
 import * as uploadService from "../services/uploadService.js";
-import * as userService from "../services/userService.js";
-import { Post } from "../models/index.js";
 import logger from "../config/logger.js";
 
 /**
@@ -19,49 +18,67 @@ export const uploadImage = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized("Authentication required");
   }
 
-  const { type = "post", entityId } = req.body;
+  const { entityId } = req.body;
 
-  logger.info(`Upload request: type=${type}, user=${req.user._id}, fileSize=${req.file.size}`);
+  logger.info(`Image upload request: user=${req.user._id}, fileSize=${req.file.size}`);
 
-  let imageData;
   try {
-    switch (type) {
-      case "avatar":
-        imageData = await uploadService.uploadAvatar(req.file.buffer);
-        const targetUserId = entityId || req.user._id;
-        await userService.updateImage(targetUserId, "avatar", imageData);
-        logger.info(`Avatar updated for user ${targetUserId}`);
-        break;
+    const imageData = await uploadService.uploadPostImage(req.file.buffer);
 
-      case "cover":
-        imageData = await uploadService.uploadCover(req.file.buffer);
-        const targetUserIdCover = entityId || req.user._id;
-        await userService.updateImage(targetUserIdCover, "coverImage", imageData);
-        logger.info(`Cover image updated for user ${targetUserIdCover}`);
-        break;
-
-      case "post":
-        imageData = await uploadService.uploadPostCover(req.file.buffer);
-        if (entityId) {
-          const post = await Post.findById(entityId);
-          if (post) {
-            if (post.coverImage?.publicId) {
-              await uploadService.deleteImage(post.coverImage.publicId);
-            }
-            post.coverImage = imageData;
-            await post.save();
-            logger.info(`Post cover updated for post ${entityId}`);
-          }
+    if (entityId) {
+      const post = await Post.findById(entityId);
+      if (post) {
+        if (post.coverImage?.publicId) {
+          await uploadService.deleteImage(post.coverImage.publicId);
         }
-        break;
-
-      default:
-        imageData = await uploadService.uploadImage(req.file.buffer);
+        post.coverImage = imageData;
+        await post.save();
+        logger.info(`Post image updated for post ${entityId}`);
+      }
     }
 
     res.status(201).json(ApiResponse.created(imageData, "Image uploaded successfully"));
   } catch (error) {
-    logger.error("Upload failed:", error);
-    throw ApiError.internal(`Upload failed: ${error.message}`);
+    logger.error("Image upload failed:", error);
+    throw ApiError.internal(`Image upload failed: ${error.message}`);
+  }
+});
+
+/**
+ * POST /uploads/video
+ * Accepts multipart/form-data with field "video".
+ */
+export const uploadVideo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw ApiError.badRequest("No video file provided");
+  }
+
+  if (!req.user) {
+    throw ApiError.unauthorized("Authentication required");
+  }
+
+  const { entityId } = req.body;
+
+  logger.info(`Video upload request: user=${req.user._id}, fileSize=${req.file.size}`);
+
+  try {
+    const videoData = await uploadService.uploadPostVideo(req.file.buffer);
+
+    if (entityId) {
+      const post = await Post.findById(entityId);
+      if (post) {
+        if (post.coverVideo?.publicId) {
+          await uploadService.deleteVideo(post.coverVideo.publicId);
+        }
+        post.coverVideo = videoData;
+        await post.save();
+        logger.info(`Post video updated for post ${entityId}`);
+      }
+    }
+
+    res.status(201).json(ApiResponse.created(videoData, "Video uploaded successfully"));
+  } catch (error) {
+    logger.error("Video upload failed:", error);
+    throw ApiError.internal(`Video upload failed: ${error.message}`);
   }
 });

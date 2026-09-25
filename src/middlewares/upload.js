@@ -21,6 +21,23 @@ const fileFilter = (_req, file, cb) => {
   }
 };
 
+// ─── VIDEO: Allowed MIME types ─────────────────────────────────
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska'];
+
+const videoFileFilter = (_req, file, cb) => {
+  if (ALLOWED_VIDEO_TYPES.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new ApiError(
+        400,
+        `Invalid file type '${file.mimetype}'. Allowed: MP4, WebM, MOV, MKV`
+      ),
+      false
+    );
+  }
+};
+
 /**
  * Single image upload middleware.
  * Field name: "image"
@@ -47,13 +64,26 @@ export const uploadMultiple = multer({
 }).array('images', 5);
 
 /**
+ * Single video upload middleware.
+ * Field name: "video"
+ * Max size: 50 MB
+ *
+ * Usage: router.post('/uploads/video', uploadVideoSingle, controller);
+ */
+export const uploadVideoSingle = multer({
+  storage,
+  fileFilter: videoFileFilter,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+}).single('video');
+
+/**
  * Multer error handler — converts MulterError to ApiError.
  * Place this after the upload middleware in the route.
  */
 export const handleMulterError = (err, _req, _res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return next(ApiError.badRequest('File size must be less than 5 MB'));
+      return next(ApiError.badRequest('File size exceeds the allowed limit'));
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
       return next(ApiError.badRequest('Maximum 5 files allowed'));

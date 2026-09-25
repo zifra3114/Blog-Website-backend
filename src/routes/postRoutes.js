@@ -20,6 +20,10 @@ const createPostSchema = Joi.object({
     url: Joi.string().uri().allow(""),
     publicId: Joi.string().allow(""),
   }).optional(),
+  coverVideo: Joi.object({
+    url: Joi.string().uri().allow(""),
+    publicId: Joi.string().allow(""),
+  }).optional(),
 });
 
 const updatePostSchema = Joi.object({
@@ -28,6 +32,10 @@ const updatePostSchema = Joi.object({
   tags: Joi.array().items(Joi.string().max(30).lowercase()).max(10),
   status: Joi.string().valid("draft", "published"),
   coverImage: Joi.object({
+    url: Joi.string().uri().allow(""),
+    publicId: Joi.string().allow(""),
+  }),
+  coverVideo: Joi.object({
     url: Joi.string().uri().allow(""),
     publicId: Joi.string().allow(""),
   }),

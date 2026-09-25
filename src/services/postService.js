@@ -17,13 +17,19 @@ export const create = async (authorId, data) => {
     "tags",
     "status",
     "coverImage",
+    "coverVideo",
   ]);
 
   logger.info("Creating post:", {
     authorId,
     title: allowed.title,
     status: allowed.status,
+    hasCoverImage: !!allowed.coverImage?.url,
+    hasCoverVideo: !!allowed.coverVideo?.url,
   });
+
+  // Debug: Log full data received
+  logger.info("Full post data received:", JSON.stringify(allowed, null, 2));
 
   const post = await Post.create({
     ...allowed,
@@ -35,6 +41,8 @@ export const create = async (authorId, data) => {
     postId: post._id,
     slug: post.slug,
     status: post.status,
+    savedCoverImage: !!post.coverImage?.url,
+    savedCoverVideo: !!post.coverVideo?.url,
   });
 
   await post.populate("author", "name username headline avatar");
@@ -84,6 +92,7 @@ export const update = async (postId, userId, updates) => {
     "tags",
     "status",
     "coverImage",
+    "coverVideo",
   ]);
 
   // Set publishedAt when transitioning to published
